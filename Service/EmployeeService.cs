@@ -15,18 +15,27 @@ namespace WebAPI_CRUD.Service
             this.context = context;
         }
 
-        public async Task<string> Create(Employee employee)
+        public async Task<int> Create(Employee employee)
         {
-            string response = string.Empty;
+            int response = 0;
             var parameters = new DynamicParameters();
             parameters.Add("Username", employee.Username, DbType.String);
             parameters.Add("Password", employee.Password, DbType.String);
             parameters.Add("IsAdmin", employee.IsAdmin, DbType.Boolean);
             parameters.Add("Age", employee.Age, DbType.Int64);
+            parameters.Add("Id", dbType: DbType.Int32, direction: ParameterDirection.Output);
             using (var conn = context.CreateConnection())
             {
-                await conn.ExecuteAsync("uspInsertUser", parameters, commandType: CommandType.StoredProcedure);
-                response = "pass";
+                try
+                {
+                    await conn.ExecuteAsync("uspInsertUser", parameters, commandType: CommandType.StoredProcedure);
+                    int generatedId = parameters.Get<int>("@Id");
+                    response = generatedId;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
             return response;
         }
