@@ -37,9 +37,7 @@ namespace WebAPI_CRUD.Service
 
                     var subject = new ClaimsIdentity(new[]
                     {
-                        new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
                         new Claim(JwtRegisteredClaimNames.Email, user.UserName),
-                        new Claim(ClaimTypes.NameIdentifier, user.UserName),
                     });
 
                     var expires = DateTime.UtcNow.AddMinutes(10);

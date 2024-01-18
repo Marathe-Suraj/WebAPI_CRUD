@@ -14,7 +14,6 @@ namespace WebAPI_CRUD.Controllers
     public class EmployeeController : ControllerBase
     {
         private readonly IEmployeeService employeeService;
-        public string Username = "";
         public EmployeeController(IEmployeeService repo)
         {
             employeeService = repo;
@@ -24,14 +23,8 @@ namespace WebAPI_CRUD.Controllers
         public IActionResult Login([FromBody] User user)
         {
             (string JWTToken, ClaimsPrincipal Principal) = employeeService.Auth(user);
-            //HttpContext.User.AddIdentity(Principal.Identities.First());
-            //var userNameClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
             HttpContext.SignInAsync(JwtBearerDefaults.AuthenticationScheme, Principal);
 
-            //if (userNameClaim != null)
-            //{
-            //    Username = userNameClaim.Value;
-            //}
             if (JWTToken != "")
             {
                 return Ok(JWTToken);
@@ -42,11 +35,11 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpGet("GetAll")]
         public async Task<IActionResult> GetAll()
         {
-            var obj = HttpContext.User;
+            string Username = HttpContext.User.FindFirst(ClaimTypes.Email).Value;
             bool IsAdmin = employeeService.CheckIsAdmin(Username);
             if (IsAdmin)
             {
@@ -63,7 +56,7 @@ namespace WebAPI_CRUD.Controllers
             return NotFound();
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpGet("GetbyID/{ID}", Name = "GetEmployee")]
         public async Task<IActionResult> GetbyID(string ID)
         {
@@ -86,7 +79,7 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpPost("Create")]
         public async Task<IActionResult> Create([FromBody] Employee employee)
         {
@@ -96,6 +89,7 @@ namespace WebAPI_CRUD.Controllers
             }
             else
             {
+                string Username = HttpContext.User.FindFirst(ClaimTypes.Email).Value;
                 bool IsAdmin = employeeService.CheckIsAdmin(Username);
                 if (IsAdmin)
                 {
@@ -109,7 +103,7 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpPut("Update")]
         public async Task<IActionResult> Update([FromBody] Employee employee, string ID)
         {
@@ -132,13 +126,14 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        //[Authorize]
+        [Authorize]
         [HttpDelete("Remove")]
         public async Task<IActionResult> Remove(string ID)
         {
             int value = 0;
             if (int.TryParse(ID, out value))
             {
+                string Username = HttpContext.User.FindFirst(ClaimTypes.Email).Value;
                 bool IsAdmin = employeeService.CheckIsAdmin(Username);
                 if (IsAdmin)
                 {
