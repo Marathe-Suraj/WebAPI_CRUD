@@ -1,4 +1,6 @@
 ﻿using Azure.Identity;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -22,12 +24,14 @@ namespace WebAPI_CRUD.Controllers
         public IActionResult Login([FromBody] User user)
         {
             (string JWTToken, ClaimsPrincipal Principal) = employeeService.Auth(user);
-            var userNameClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+            //HttpContext.User.AddIdentity(Principal.Identities.First());
+            //var userNameClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+            HttpContext.SignInAsync(JwtBearerDefaults.AuthenticationScheme, Principal);
 
-            if (userNameClaim != null)
-            {
-                Username = userNameClaim.Value;
-            }
+            //if (userNameClaim != null)
+            //{
+            //    Username = userNameClaim.Value;
+            //}
             if (JWTToken != "")
             {
                 return Ok(JWTToken);
@@ -42,6 +46,7 @@ namespace WebAPI_CRUD.Controllers
         [HttpGet("GetAll")]
         public async Task<IActionResult> GetAll()
         {
+            var obj = HttpContext.User;
             bool IsAdmin = employeeService.CheckIsAdmin(Username);
             if (IsAdmin)
             {
