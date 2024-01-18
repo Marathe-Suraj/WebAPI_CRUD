@@ -1,5 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Azure.Identity;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using WebAPI_CRUD.Model;
 using WebAPI_CRUD.Service.Interface;
 
@@ -10,6 +12,7 @@ namespace WebAPI_CRUD.Controllers
     public class EmployeeController : ControllerBase
     {
         private readonly IEmployeeService employeeService;
+        public string Username = "";
         public EmployeeController(IEmployeeService repo)
         {
             employeeService = repo;
@@ -18,7 +21,13 @@ namespace WebAPI_CRUD.Controllers
         [HttpPost("login")]
         public IActionResult Login([FromBody] User user)
         {
-            string JWTToken = employeeService.Auth(user);
+            (string JWTToken, ClaimsPrincipal Principal) = employeeService.Auth(user);
+            var userNameClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier);
+
+            if (userNameClaim != null)
+            {
+                Username = userNameClaim.Value;
+            }
             if (JWTToken != "")
             {
                 return Ok(JWTToken);
@@ -33,15 +42,20 @@ namespace WebAPI_CRUD.Controllers
         [HttpGet("GetAll")]
         public async Task<IActionResult> GetAll()
         {
-            var _list = await employeeService.GetAll();
-            if (_list != null)
+            bool IsAdmin = employeeService.CheckIsAdmin(Username);
+            if (IsAdmin)
             {
-                return Ok(_list);
+                var _list = await employeeService.GetAll();
+                if (_list != null)
+                {
+                    return Ok(_list);
+                }
             }
             else
             {
-                return NotFound();
+                return Unauthorized();
             }
+            return NotFound();
         }
 
         //[Authorize]
@@ -77,8 +91,16 @@ namespace WebAPI_CRUD.Controllers
             }
             else
             {
-                var createdEmployee = await employeeService.Create(employee);
-                return CreatedAtRoute("GetEmployee", new { id = createdEmployee }, createdEmployee);
+                bool IsAdmin = employeeService.CheckIsAdmin(Username);
+                if (IsAdmin)
+                {
+                    var createdEmployee = await employeeService.Create(employee);
+                    return CreatedAtRoute("GetEmployee", new { id = createdEmployee }, createdEmployee);
+                }
+                else
+                {
+                    return Unauthorized();
+                }
             }
         }
 
@@ -112,14 +134,22 @@ namespace WebAPI_CRUD.Controllers
             int value = 0;
             if (int.TryParse(ID, out value))
             {
-                var _result = await employeeService.Remove(value);
-                if (_result != null)
+                bool IsAdmin = employeeService.CheckIsAdmin(Username);
+                if (IsAdmin)
                 {
-                    return NoContent();
+                    var _result = await employeeService.Remove(value);
+                    if (_result != null)
+                    {
+                        return NoContent();
+                    }
+                    else
+                    {
+                        return NotFound("User not found...");
+                    }
                 }
                 else
                 {
-                    return NotFound("User not found...");
+                    return Unauthorized();
                 }
             }
             else

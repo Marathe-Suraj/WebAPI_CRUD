@@ -21,9 +21,10 @@ namespace WebAPI_CRUD.Service
             this.context = context;
         }
 
-        public string Auth([FromBody] User user)
+        public (string Token, ClaimsPrincipal Principal) Auth([FromBody] User user)
         {
             string Token = "";
+            ClaimsPrincipal principal = null;
             if (user != null)
             {
                 if (IsValidUser(user))
@@ -38,6 +39,7 @@ namespace WebAPI_CRUD.Service
                     {
                         new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
                         new Claim(JwtRegisteredClaimNames.Email, user.UserName),
+                        new Claim(ClaimTypes.NameIdentifier, user.UserName),
                     });
 
                     var expires = DateTime.UtcNow.AddMinutes(10);
@@ -49,13 +51,15 @@ namespace WebAPI_CRUD.Service
                         SigningCredentials = signingCredentials
                     };
 
+
                     var tokenHandler = new JwtSecurityTokenHandler();
                     var token = tokenHandler.CreateToken(tokenDescriptor);
                     var jwtToken = tokenHandler.WriteToken(token);
                     Token = jwtToken;
+                    principal = new ClaimsPrincipal(subject);
                 }
             }
-            return Token;
+            return (Token, principal);
         }
 
         public bool IsValidUser(User user)
@@ -180,6 +184,27 @@ namespace WebAPI_CRUD.Service
                 }
             }
             return response;
+        }
+
+        public bool CheckIsAdmin(string Username)
+        {
+            bool IsAdmin = false;
+            var parameters = new DynamicParameters();
+            parameters.Add("Username", Username, DbType.Int64);
+            parameters.Add("IsAdmin", dbType: DbType.Boolean, direction: ParameterDirection.Output);
+            using (var conn = context.CreateConnection())
+            {
+                try
+                {
+                    var RESULT = conn.Query("uspCheckUserIsAdmin", parameters, commandType: CommandType.StoredProcedure);
+                    IsAdmin = parameters.Get<bool>("@IsAdmin");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+            }
+            return IsAdmin;
         }
     }
 }
