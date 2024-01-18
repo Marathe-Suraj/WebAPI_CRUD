@@ -1,18 +1,84 @@
-﻿using System.Data;
-using WebAPI_CRUD.Model.Data;
+﻿using Dapper;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using System.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using WebAPI_CRUD.Model;
+using WebAPI_CRUD.Model.Data;
 using WebAPI_CRUD.Service.Interface;
-using Dapper;
-using System;
 
 namespace WebAPI_CRUD.Service
 {
     public class EmployeeService : IEmployeeService
     {
         private readonly DapperDBContext context;
-        public EmployeeService(DapperDBContext context)
+        IConfiguration configuration;
+        public EmployeeService(IConfiguration configuration, DapperDBContext context)
         {
+            this.configuration = configuration;
             this.context = context;
+        }
+
+        public string Auth([FromBody] User user)
+        {
+            string Token = "";
+            if (user != null)
+            {
+                if (IsValidUser(user))
+                {
+                    var key = Encoding.UTF8.GetBytes(configuration["Jwt:Key"]);
+                    var signingCredentials = new SigningCredentials(
+                        new SymmetricSecurityKey(key),
+                        SecurityAlgorithms.HmacSha512Signature
+                    );
+
+                    var subject = new ClaimsIdentity(new[]
+                    {
+                        new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                        new Claim(JwtRegisteredClaimNames.Email, user.UserName),
+                    });
+
+                    var expires = DateTime.UtcNow.AddMinutes(10);
+
+                    var tokenDescriptor = new SecurityTokenDescriptor
+                    {
+                        Subject = subject,
+                        Expires = expires,
+                        SigningCredentials = signingCredentials
+                    };
+
+                    var tokenHandler = new JwtSecurityTokenHandler();
+                    var token = tokenHandler.CreateToken(tokenDescriptor);
+                    var jwtToken = tokenHandler.WriteToken(token);
+                    Token = jwtToken;
+                }
+            }
+            return Token;
+        }
+
+        public bool IsValidUser(User user)
+        {
+            bool result = false;
+            var parameters = new DynamicParameters();
+            parameters.Add("Username", user.UserName, DbType.String);
+            parameters.Add("Password", user.Password, DbType.String);
+            parameters.Add("IsAuthenticated", dbType: DbType.Boolean, direction: ParameterDirection.Output);
+            using (var conn = context.CreateConnection())
+            {
+                try
+                {
+                    var RESULT = conn.Query("uspAuthorizeUser", parameters, commandType: CommandType.StoredProcedure);
+                    bool IsAuthenticated = parameters.Get<bool>("@IsAuthenticated");
+                    result = IsAuthenticated;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+            }
+            return result;
         }
 
         public async Task<int> Create(Employee employee)
