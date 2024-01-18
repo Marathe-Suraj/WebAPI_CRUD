@@ -93,6 +93,7 @@ namespace WebAPI_CRUD.Service
             parameters.Add("Password", employee.Password, DbType.String);
             parameters.Add("IsAdmin", employee.IsAdmin, DbType.Boolean);
             parameters.Add("Age", employee.Age, DbType.Int64);
+            parameters.Add("Hobbies", employee.HobbiesJson, DbType.String);
             parameters.Add("Id", dbType: DbType.Int32, direction: ParameterDirection.Output);
             using (var conn = context.CreateConnection())
             {
@@ -152,7 +153,7 @@ namespace WebAPI_CRUD.Service
                 try
                 {
                     await conn.ExecuteAsync("uspDeleteUser", new { ID }, commandType: CommandType.StoredProcedure);
-                    response = "pass";
+                    response = "User deleted successfully...";
                 }
                 catch (Exception ex)
                 {
@@ -171,12 +172,13 @@ namespace WebAPI_CRUD.Service
             parameters.Add("Password", employee.Password, DbType.String);
             parameters.Add("isAdmin", employee.IsAdmin, DbType.Boolean);
             parameters.Add("Age", employee.Age, DbType.Int64);
+            parameters.Add("Hobbies", employee.HobbiesJson, DbType.String);
             using (var conn = context.CreateConnection())
             {
                 try
                 {
                     await conn.ExecuteAsync("uspUpdateUser", parameters, commandType: CommandType.StoredProcedure);
-                    response = "pass";
+                    response = "User details updated successfully...";
                 }
                 catch (Exception ex)
                 {
