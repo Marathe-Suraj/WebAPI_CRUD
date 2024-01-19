@@ -21,13 +21,15 @@ namespace WebAPI_CRUD.Service
             this.context = context;
         }
 
-        public (string Token, ClaimsPrincipal Principal) Auth([FromBody] User user)
+        public string Auth([FromBody] User user)
         {
             string Token = "";
-            ClaimsPrincipal principal = null;
             if (user != null)
             {
-                if (IsValidUser(user))
+                var UserData = IsValidUser(user);
+                bool isAuthenticated = UserData.IsAuthenticated;
+                bool IsAdmin = UserData.IsAdmin;
+                if (isAuthenticated)
                 {
                     var key = Encoding.UTF8.GetBytes(configuration["Jwt:Key"]);
                     var signingCredentials = new SigningCredentials(
@@ -35,53 +37,52 @@ namespace WebAPI_CRUD.Service
                         SecurityAlgorithms.HmacSha512Signature
                     );
 
-                    var subject = new ClaimsIdentity(new[]
+                    List<Claim> claims = new List<Claim>
                     {
-                        new Claim(JwtRegisteredClaimNames.Email, user.UserName),
-                    });
-
-                    var expires = DateTime.UtcNow.AddMinutes(10);
-
-                    var tokenDescriptor = new SecurityTokenDescriptor
-                    {
-                        Subject = subject,
-                        Expires = expires,
-                        SigningCredentials = signingCredentials
+                        new Claim(ClaimTypes.Name, user.UserName),
+                        new Claim(ClaimTypes.Role, (IsAdmin == true) ? "Admin" : "Employee"),
                     };
 
+                    var token = new JwtSecurityToken(configuration["Jwt:Issuer"], configuration["Jwt:Audience"], claims: claims, null, expires: DateTime.Now.AddMinutes(10),
+                        signingCredentials: signingCredentials
+                        );
 
-                    var tokenHandler = new JwtSecurityTokenHandler();
-                    var token = tokenHandler.CreateToken(tokenDescriptor);
-                    var jwtToken = tokenHandler.WriteToken(token);
-                    Token = jwtToken;
-                    principal = new ClaimsPrincipal(subject);
+
+                    Token = new JwtSecurityTokenHandler().WriteToken(token);
                 }
             }
-            return (Token, principal);
+            return Token;
         }
 
-        public bool IsValidUser(User user)
+        public (bool IsAuthenticated, bool IsAdmin) IsValidUser(User user)
         {
-            bool result = false;
+            bool IsAuthenticated = false;
+            bool IsAdmin = false;
+
             var parameters = new DynamicParameters();
             parameters.Add("Username", user.UserName, DbType.String);
             parameters.Add("Password", user.Password, DbType.String);
             parameters.Add("IsAuthenticated", dbType: DbType.Boolean, direction: ParameterDirection.Output);
+            parameters.Add("IsAdmin", dbType: DbType.Boolean, direction: ParameterDirection.Output);
+
             using (var conn = context.CreateConnection())
             {
                 try
                 {
-                    var RESULT = conn.Query("uspAuthorizeUser", parameters, commandType: CommandType.StoredProcedure);
-                    bool IsAuthenticated = parameters.Get<bool>("@IsAuthenticated");
-                    result = IsAuthenticated;
+                    conn.Query("uspAuthorizeUser", parameters, commandType: CommandType.StoredProcedure);
+
+                    IsAuthenticated = parameters.Get<bool>("IsAuthenticated");
+                    IsAdmin = parameters.Get<bool>("IsAdmin");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine(ex.Message);
                 }
             }
-            return result;
+
+            return (IsAuthenticated, IsAdmin);
         }
+
 
         public async Task<int> Create(Employee employee)
         {
@@ -184,27 +185,6 @@ namespace WebAPI_CRUD.Service
                 }
             }
             return response;
-        }
-
-        public bool CheckIsAdmin(string Username)
-        {
-            bool IsAdmin = false;
-            var parameters = new DynamicParameters();
-            parameters.Add("Username", Username, DbType.Int64);
-            parameters.Add("IsAdmin", dbType: DbType.Boolean, direction: ParameterDirection.Output);
-            using (var conn = context.CreateConnection())
-            {
-                try
-                {
-                    var RESULT = conn.Query("uspCheckUserIsAdmin", parameters, commandType: CommandType.StoredProcedure);
-                    IsAdmin = parameters.Get<bool>("@IsAdmin");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex.Message);
-                }
-            }
-            return IsAdmin;
         }
     }
 }

@@ -1,7 +1,4 @@
-﻿using Azure.Identity;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using WebAPI_CRUD.Model;
@@ -11,37 +8,41 @@ namespace WebAPI_CRUD.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class EmployeeController : ControllerBase
     {
         private readonly IEmployeeService employeeService;
-        public EmployeeController(IEmployeeService repo)
+        private readonly IHttpContextAccessor httpContextAccessor;
+        public string Role = "";
+        public EmployeeController(IEmployeeService repo, IHttpContextAccessor httpContext)
         {
             employeeService = repo;
+            httpContextAccessor = httpContext;
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public IActionResult Login([FromBody] User user)
         {
-            (string JWTToken, ClaimsPrincipal Principal) = employeeService.Auth(user);
-            HttpContext.SignInAsync(JwtBearerDefaults.AuthenticationScheme, Principal);
+            IActionResult response = Unauthorized();
+            string JWTToken = employeeService.Auth(user);
 
             if (JWTToken != "")
             {
-                return Ok(JWTToken);
+                response = Ok(new { token = JWTToken });
             }
-            else
-            {
-                return Unauthorized();
-            }
+            return response;
         }
 
-        [Authorize]
+        
         [HttpGet("GetAll")]
         public async Task<IActionResult> GetAll()
         {
-            string Username = HttpContext.User.FindFirst(ClaimTypes.Email).Value;
-            bool IsAdmin = employeeService.CheckIsAdmin(Username);
-            if (IsAdmin)
+            if (httpContextAccessor.HttpContext != null)
+            {
+                Role = httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.Role);
+            }
+            if (Role == "Admin")
             {
                 var _list = await employeeService.GetAll();
                 if (_list != null)
@@ -56,7 +57,6 @@ namespace WebAPI_CRUD.Controllers
             return NotFound();
         }
 
-        [Authorize]
         [HttpGet("GetbyID/{ID}", Name = "GetEmployee")]
         public async Task<IActionResult> GetbyID(string ID)
         {
@@ -79,7 +79,6 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        [Authorize]
         [HttpPost("Create")]
         public async Task<IActionResult> Create([FromBody] Employee employee)
         {
@@ -89,9 +88,11 @@ namespace WebAPI_CRUD.Controllers
             }
             else
             {
-                string Username = HttpContext.User.FindFirst(ClaimTypes.Email).Value;
-                bool IsAdmin = employeeService.CheckIsAdmin(Username);
-                if (IsAdmin)
+                if (httpContextAccessor.HttpContext != null)
+                {
+                    Role = httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.Role);
+                }
+                if (Role == "Admin")
                 {
                     var createdEmployee = await employeeService.Create(employee);
                     return CreatedAtRoute("GetEmployee", new { id = createdEmployee }, createdEmployee);
@@ -103,7 +104,6 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        [Authorize]
         [HttpPut("Update")]
         public async Task<IActionResult> Update([FromBody] Employee employee, string ID)
         {
@@ -126,16 +126,17 @@ namespace WebAPI_CRUD.Controllers
             }
         }
 
-        [Authorize]
         [HttpDelete("Remove")]
         public async Task<IActionResult> Remove(string ID)
         {
             int value = 0;
             if (int.TryParse(ID, out value))
             {
-                string Username = HttpContext.User.FindFirst(ClaimTypes.Email).Value;
-                bool IsAdmin = employeeService.CheckIsAdmin(Username);
-                if (IsAdmin)
+                if (httpContextAccessor.HttpContext != null)
+                {
+                    Role = httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.Role);
+                }
+                if (Role == "Admin")
                 {
                     var _result = await employeeService.Remove(value);
                     if (_result != null)
